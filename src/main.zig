@@ -2,10 +2,10 @@ const std = @import("std");
 const geometry = @import("geometry.zig");
 const ObjLoader = @import("objloader.zig").ObjLoader;
 const Octree = @import("octree.zig").Octree;
-const Ray = @import("octree.zig").Ray;
 
 const Vec3 = geometry.Vec3;
 const Aabb = geometry.Aabb;
+const Ray = geometry.Ray;
 const PrimId = geometry.PrimId;
 
 /// Compute AABB for a triangle given vertex indices

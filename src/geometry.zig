@@ -9,9 +9,96 @@ pub const PrimId = u32;
 /// Unique identifier for a mesh
 pub const MeshId = u32;
 
+pub const Ray = struct {
+    origin: Vec3,
+    direction: Vec3,
+};
+
 pub const Aabb = struct {
+    pub const Vec = @Vector(3, f32);
+
     bmin: Vec3,
     bmax: Vec3,
+
+    pub inline fn center(self: Aabb) Vec3 {
+        const half: Vec = @splat(0.5);
+        const min_v: Vec = self.bmin.data;
+        const max_v: Vec = self.bmax.data;
+        const result = (min_v + max_v) * half;
+        return .{ .data = result };
+    }
+
+    /// Overlap test (closed: touching counts as overlap)
+    pub inline fn overlaps(self: Aabb, other: Aabb) bool {
+        const a_min: Vec = self.bmin.data;
+        const a_max: Vec = self.bmax.data;
+        const b_min: Vec = other.bmin.data;
+        const b_max: Vec = other.bmax.data;
+
+        const lo_ok: @Vector(3, bool) = a_min <= b_max;
+        const hi_ok: @Vector(3, bool) = a_max >= b_min;
+        return @reduce(.And, lo_ok) and @reduce(.And, hi_ok);
+    }
+
+    /// Strict overlap test (touching does NOT count)
+    pub inline fn overlapsStrict(self: Aabb, other: Aabb) bool {
+        const a_min: Vec = self.bmin.data;
+        const a_max: Vec = self.bmax.data;
+        const b_min: Vec = other.bmin.data;
+        const b_max: Vec = other.bmax.data;
+
+        const lo_ok: @Vector(3, bool) = a_min < b_max;
+        const hi_ok: @Vector(3, bool) = a_max > b_min;
+        return @reduce(.And, lo_ok) and @reduce(.And, hi_ok);
+    }
+
+    /// Ray-AABB intersection test
+    pub inline fn intersectsRay(self: Aabb, ray: Ray) bool {
+        const origin: Vec = ray.origin.data;
+        const dir: Vec = ray.direction.data;
+        const box_min: Vec = self.bmin.data;
+        const box_max: Vec = self.bmax.data;
+
+        const epsilon: Vec = @splat(1e-8);
+        const abs_dir = @abs(dir);
+        const is_parallel = abs_dir < epsilon;
+
+        // Check if ray is parallel and outside slab
+        if (@reduce(.Or, is_parallel)) {
+            const origin_arr = ray.origin.toArray();
+            const dir_arr = ray.direction.toArray();
+            const bmin_arr = self.bmin.toArray();
+            const bmax_arr = self.bmax.toArray();
+            inline for (0..3) |i| {
+                if (@abs(dir_arr[i]) < 1e-8) {
+                    if (origin_arr[i] < bmin_arr[i] or origin_arr[i] > bmax_arr[i]) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        const one: Vec = @splat(1.0);
+        const safe_dir = @select(f32, is_parallel, one, dir);
+        const inv_dir = one / safe_dir;
+
+        const t1 = (box_min - origin) * inv_dir;
+        const t2 = (box_max - origin) * inv_dir;
+
+        var t_near = @min(t1, t2);
+        var t_far = @max(t1, t2);
+
+        // For parallel dimensions, use -inf/+inf so they don't affect the reduction
+        const neg_inf: Vec = @splat(-std.math.inf(f32));
+        const pos_inf: Vec = @splat(std.math.inf(f32));
+        t_near = @select(f32, is_parallel, neg_inf, t_near);
+        t_far = @select(f32, is_parallel, pos_inf, t_far);
+
+        const t_min = @reduce(.Max, t_near);
+        const t_max = @reduce(.Min, t_far);
+
+        return t_max >= 0 and t_min <= t_max;
+    }
 };
 
 /// A mesh containing only geometry data (no GPU resources)

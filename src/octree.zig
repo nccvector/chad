@@ -4,11 +4,7 @@ const geometry = @import("geometry.zig");
 const Vec3 = geometry.Vec3;
 const Aabb = geometry.Aabb;
 const PrimId = geometry.PrimId;
-
-pub const Ray = struct {
-    origin: Vec3,
-    direction: Vec3,
-};
+pub const Ray = geometry.Ray;
 
 pub const Octree = struct {
     const Self = @This();
@@ -70,7 +66,7 @@ pub const Octree = struct {
 
     fn insertIntoNode(self: *Self, node: *Node, id: PrimId, bounds: Aabb) !void {
         // If primitive doesn't overlap this node, skip
-        if (!aabbOverlap(node.bounds, bounds)) return;
+        if (!node.bounds.overlaps(bounds)) return;
 
         if (node.isLeaf()) {
             // Add to this leaf node
@@ -93,10 +89,10 @@ pub const Octree = struct {
     fn splitNode(self: *Self, node: *Node) !void {
         const children = try self.allocator.create([8]Node);
 
-        const center = aabbCenter(node.bounds);
-        const min = vec3ToArray(node.bounds.bmin);
-        const max = vec3ToArray(node.bounds.bmax);
-        const c = vec3ToArray(center);
+        const center = node.bounds.center();
+        const min = node.bounds.bmin.toArray();
+        const max = node.bounds.bmax.toArray();
+        const c = center.toArray();
 
         // Create 8 child nodes with subdivided bounds
         inline for (0..8) |i| {
@@ -121,7 +117,7 @@ pub const Octree = struct {
         // Re-insert primitives into children
         for (node.primitives.items) |entry| {
             for (children) |*child| {
-                if (aabbOverlap(child.bounds, entry.bounds)) {
+                if (child.bounds.overlaps(entry.bounds)) {
                     try child.primitives.append(self.allocator, entry);
                 }
             }
@@ -137,11 +133,11 @@ pub const Octree = struct {
     }
 
     fn queryAabbNode(self: *const Self, node: *const Node, bounds: Aabb, results: *std.ArrayListUnmanaged(PrimId)) !void {
-        if (!aabbOverlap(node.bounds, bounds)) return;
+        if (!node.bounds.overlaps(bounds)) return;
 
         // Check primitives at this node
         for (node.primitives.items) |entry| {
-            if (aabbOverlap(entry.bounds, bounds)) {
+            if (entry.bounds.overlaps(bounds)) {
                 // Avoid duplicates
                 var found = false;
                 for (results.items) |existing| {
@@ -170,11 +166,11 @@ pub const Octree = struct {
     }
 
     fn queryRayNode(self: *const Self, node: *const Node, ray: Ray, results: *std.ArrayListUnmanaged(PrimId)) !void {
-        if (!rayAabbIntersect(ray, node.bounds)) return;
+        if (!node.bounds.intersectsRay(ray)) return;
 
         // Check primitives at this node
         for (node.primitives.items) |entry| {
-            if (rayAabbIntersect(ray, entry.bounds)) {
+            if (entry.bounds.intersectsRay(ray)) {
                 // Avoid duplicates
                 var found = false;
                 for (results.items) |existing| {
@@ -206,72 +202,6 @@ pub const Octree = struct {
         };
     }
 };
-
-// Helper functions
-
-fn vec3ToArray(v: Vec3) [3]f32 {
-    return v.toArray()[0..3].*;
-}
-
-fn aabbCenter(aabb: Aabb) Vec3 {
-    const min = vec3ToArray(aabb.bmin);
-    const max = vec3ToArray(aabb.bmax);
-    return Vec3.fromArray(&.{
-        (min[0] + max[0]) * 0.5,
-        (min[1] + max[1]) * 0.5,
-        (min[2] + max[2]) * 0.5,
-    });
-}
-
-fn aabbOverlap(a: Aabb, b: Aabb) bool {
-    const a_min = vec3ToArray(a.bmin);
-    const a_max = vec3ToArray(a.bmax);
-    const b_min = vec3ToArray(b.bmin);
-    const b_max = vec3ToArray(b.bmax);
-
-    return a_min[0] <= b_max[0] and a_max[0] >= b_min[0] and
-        a_min[1] <= b_max[1] and a_max[1] >= b_min[1] and
-        a_min[2] <= b_max[2] and a_max[2] >= b_min[2];
-}
-
-fn rayAabbIntersect(ray: Ray, aabb: Aabb) bool {
-    const origin = vec3ToArray(ray.origin);
-    const dir = vec3ToArray(ray.direction);
-    const box_min = vec3ToArray(aabb.bmin);
-    const box_max = vec3ToArray(aabb.bmax);
-
-    var t_min: f32 = -std.math.inf(f32);
-    var t_max: f32 = std.math.inf(f32);
-
-    inline for (0..3) |i| {
-        if (@abs(dir[i]) < 1e-8) {
-            // Ray parallel to slab
-            if (origin[i] < box_min[i] or origin[i] > box_max[i]) {
-                return false;
-            }
-        } else {
-            const inv_d = 1.0 / dir[i];
-            var t1 = (box_min[i] - origin[i]) * inv_d;
-            var t2 = (box_max[i] - origin[i]) * inv_d;
-
-            if (t1 > t2) {
-                const tmp = t1;
-                t1 = t2;
-                t2 = tmp;
-            }
-
-            t_min = @max(t_min, t1);
-            t_max = @min(t_max, t2);
-
-            if (t_min > t_max) {
-                return false;
-            }
-        }
-    }
-
-    // Return true if intersection is in front of ray origin
-    return t_max >= 0;
-}
 
 // Tests
 test "octree basic insert and query" {
