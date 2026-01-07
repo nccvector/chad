@@ -14,13 +14,13 @@ pub const Octree = struct {
         max_primitives_per_node: usize = 8,
     };
 
-    const Node = struct {
+    pub const Node = struct {
         bounds: Aabb,
         children: ?*[8]Node = null,
         primitives: std.ArrayListUnmanaged(Entry) = .empty,
         depth: u8 = 0,
 
-        const Entry = struct {
+        pub const Entry = struct {
             id: PrimId,
             bounds: Aabb,
         };
@@ -86,7 +86,7 @@ pub const Octree = struct {
         }
     }
 
-    fn splitNode(self: *Self, node: *Node) !void {
+    pub fn splitNode(self: *Self, node: *Node) !void {
         const children = try self.allocator.create([8]Node);
 
         const center = node.bounds.center();

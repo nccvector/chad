@@ -148,8 +148,8 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
 
-    // Benchmark executable
-    const bench_exe = b.addExecutable(.{
+    // Geometry benchmark executable
+    const bench_geometry_exe = b.addExecutable(.{
         .name = "bench-geometry",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/bench_geometry.zig"),
@@ -161,16 +161,45 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    b.installArtifact(bench_exe);
+    b.installArtifact(bench_geometry_exe);
 
-    const bench_step = b.step("bench", "Run geometry benchmarks");
-    const run_bench = b.addRunArtifact(bench_exe);
-    bench_step.dependOn(&run_bench.step);
-    run_bench.step.dependOn(b.getInstallStep());
+    const bench_geometry_step = b.step("bench-geometry", "Run geometry benchmarks");
+    const run_bench_geometry = b.addRunArtifact(bench_geometry_exe);
+    bench_geometry_step.dependOn(&run_bench_geometry.step);
+    run_bench_geometry.step.dependOn(b.getInstallStep());
 
     if (b.args) |args| {
-        run_bench.addArgs(args);
+        run_bench_geometry.addArgs(args);
     }
+
+    // Octree benchmark executable
+    const bench_octree_exe = b.addExecutable(.{
+        .name = "bench-octree",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/bench_octree.zig"),
+            .target = target,
+            .optimize = .ReleaseFast,
+            .imports = &.{
+                .{ .name = "lmao", .module = lmao.module("lmao") },
+            },
+        }),
+    });
+
+    b.installArtifact(bench_octree_exe);
+
+    const bench_octree_step = b.step("bench-octree", "Run octree benchmarks");
+    const run_bench_octree = b.addRunArtifact(bench_octree_exe);
+    bench_octree_step.dependOn(&run_bench_octree.step);
+    run_bench_octree.step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_bench_octree.addArgs(args);
+    }
+
+    // Combined bench step runs all benchmarks
+    const bench_step = b.step("bench", "Run all benchmarks");
+    bench_step.dependOn(&run_bench_geometry.step);
+    bench_step.dependOn(&run_bench_octree.step);
 
     // Just like flags, top level steps are also listed in the `--help` menu.
     //
