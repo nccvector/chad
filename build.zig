@@ -173,16 +173,24 @@ pub fn build(b: *std.Build) void {
     }
 
     // Octree benchmark executable
+    const enable_diagnostics = b.option(bool, "diagnostics", "Enable tree diagnostics output") orelse false;
+
+    const bench_octree_mod = b.createModule(.{
+        .root_source_file = b.path("src/bench_octree.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+        .imports = &.{
+            .{ .name = "lmao", .module = lmao.module("lmao") },
+        },
+    });
+
+    const options = b.addOptions();
+    options.addOption(bool, "enable_diagnostics", enable_diagnostics);
+    bench_octree_mod.addOptions("config", options);
+
     const bench_octree_exe = b.addExecutable(.{
         .name = "bench-octree",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/bench_octree.zig"),
-            .target = target,
-            .optimize = .ReleaseFast,
-            .imports = &.{
-                .{ .name = "lmao", .module = lmao.module("lmao") },
-            },
-        }),
+        .root_module = bench_octree_mod,
     });
 
     b.installArtifact(bench_octree_exe);

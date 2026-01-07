@@ -1,6 +1,9 @@
 const std = @import("std");
+const config = @import("config");
 const geometry = @import("geometry.zig");
 const octree_mod = @import("octree.zig");
+
+const enable_diagnostics = config.enable_diagnostics;
 
 const Vec3 = geometry.Vec3;
 const Aabb = geometry.Aabb;
@@ -127,12 +130,54 @@ fn benchmarkSplitNode(num_splits: usize, primitives_per_split: usize, rng: std.R
     return @as(f64, @floatFromInt(total_ns)) / @as(f64, @floatFromInt(num_splits));
 }
 
-fn benchmarkInsert(num_primitives: usize, rng: std.Random, alloc: std.mem.Allocator) !f64 {
+fn countNodes(node: *const Octree.Node) usize {
+    var count: usize = 1;
+    if (node.children) |children| {
+        for (children) |*child| {
+            count += countNodes(child);
+        }
+    }
+    return count;
+}
+
+fn countPrimitiveEntries(node: *const Octree.Node) usize {
+    var count: usize = node.primitives.items.len;
+    if (node.children) |children| {
+        for (children) |*child| {
+            count += countPrimitiveEntries(child);
+        }
+    }
+    return count;
+}
+
+fn maxDepth(node: *const Octree.Node) u8 {
+    var max: u8 = node.depth;
+    if (node.children) |children| {
+        for (children) |*child| {
+            max = @max(max, maxDepth(child));
+        }
+    }
+    return max;
+}
+
+const InsertStats = struct {
+    time_ns: f64,
+    nodes: ?usize = null,
+    entries: ?usize = null,
+    depth: ?u8 = null,
+    num_primitives: usize,
+
+    fn duplication(self: InsertStats) f64 {
+        return @as(f64, @floatFromInt(self.entries.?)) / @as(f64, @floatFromInt(self.num_primitives));
+    }
+};
+
+fn benchmarkInsert(num_primitives: usize, rng: std.Random, alloc: std.mem.Allocator) !InsertStats {
     const aabbs = try alloc.alloc(Aabb, num_primitives);
     defer alloc.free(aabbs);
 
     for (0..num_primitives) |i| {
-        aabbs[i] = randomAabb(rng);
+        aabbs[i] = randomSmallAabb(rng);
     }
 
     const world_bounds = Aabb{
@@ -149,7 +194,18 @@ fn benchmarkInsert(num_primitives: usize, rng: std.Random, alloc: std.mem.Alloca
     }
     const end = std.time.nanoTimestamp();
 
-    return @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(num_primitives));
+    var stats = InsertStats{
+        .time_ns = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(num_primitives)),
+        .num_primitives = num_primitives,
+    };
+
+    if (enable_diagnostics) {
+        stats.nodes = countNodes(&octree.root);
+        stats.entries = countPrimitiveEntries(&octree.root);
+        stats.depth = maxDepth(&octree.root);
+    }
+
+    return stats;
 }
 
 fn benchmarkQueryAabb(num_primitives: usize, num_queries: usize, rng: std.Random, alloc: std.mem.Allocator) !f64 {
@@ -263,8 +319,8 @@ pub fn main() !void {
 
     var buf: [32]u8 = undefined;
 
-    const insert_ns = try benchmarkInsert(num_primitives, rng, alloc);
-    print(" {s: <40} | {s: >15}\n", .{ "Octree.insert", formatTime(insert_ns, &buf) });
+    const insert_stats = try benchmarkInsert(num_primitives, rng, alloc);
+    print(" {s: <40} | {s: >15}\n", .{ "Octree.insert", formatTime(insert_stats.time_ns, &buf) });
 
     const split_ns = try benchmarkSplitNode(num_splits, primitives_per_split, rng, alloc);
     print(" {s: <40} | {s: >15}\n", .{ "Octree.splitNode (direct)", formatTime(split_ns, &buf) });
@@ -275,5 +331,18 @@ pub fn main() !void {
     const query_ray_ns = try benchmarkQueryRay(num_primitives, num_queries, rng, alloc);
     print(" {s: <40} | {s: >15}\n", .{ "Octree.queryRayIntersection", formatTime(query_ray_ns, &buf) });
 
-    print("{s}\n\n", .{"=" ** 60});
+    print("{s}\n", .{"=" ** 60});
+
+    if (enable_diagnostics) {
+        print("\n Tree Statistics\n", .{});
+        print("{s}\n", .{"=" ** 60});
+        print(" {s: <40} | {s: >15}\n", .{ "Metric", "Value" });
+        print("{s}\n", .{"-" ** 60});
+        print(" {s: <40} | {d: >15}\n", .{ "Total nodes", insert_stats.nodes.? });
+        print(" {s: <40} | {d: >15}\n", .{ "Max depth", insert_stats.depth.? });
+        print(" {s: <40} | {d: >15}\n", .{ "Primitive entries", insert_stats.entries.? });
+        print(" {s: <40} | {d: >14.1}x\n", .{ "Duplication factor", insert_stats.duplication() });
+        print("{s}\n", .{"=" ** 60});
+    }
+    print("\n", .{});
 }

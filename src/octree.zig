@@ -79,9 +79,22 @@ pub const Octree = struct {
                 try self.splitNode(node);
             }
         } else {
-            // Insert into children
+            // Find which children this primitive overlaps
+            var overlap_count: u8 = 0;
+            var single_child: ?*Node = null;
             for (node.children.?) |*child| {
-                try self.insertIntoNode(child, id, bounds);
+                if (child.bounds.overlaps(bounds)) {
+                    overlap_count += 1;
+                    single_child = child;
+                }
+            }
+
+            if (overlap_count == 1) {
+                // Fits in single child, push down
+                try self.insertIntoNode(single_child.?, id, bounds);
+            } else {
+                // Spans multiple children, store at this level
+                try node.primitives.append(self.allocator, .{ .id = id, .bounds = bounds });
             }
         }
     }
@@ -114,17 +127,29 @@ pub const Octree = struct {
 
         node.children = children;
 
-        // Re-insert primitives into children
+        // Re-insert primitives into children (only if they fit in a single child)
+        var keep: std.ArrayListUnmanaged(Node.Entry) = .empty;
         for (node.primitives.items) |entry| {
+            var overlap_count: u8 = 0;
+            var single_child: ?*Node = null;
             for (children) |*child| {
                 if (child.bounds.overlaps(entry.bounds)) {
-                    try child.primitives.append(self.allocator, entry);
+                    overlap_count += 1;
+                    single_child = child;
                 }
+            }
+
+            if (overlap_count == 1) {
+                try single_child.?.primitives.append(self.allocator, entry);
+            } else {
+                // Spans multiple children, keep at this level
+                try keep.append(self.allocator, entry);
             }
         }
 
-        // Clear parent primitives
-        node.primitives.clearAndFree(self.allocator);
+        // Replace parent primitives with ones that span multiple children
+        node.primitives.deinit(self.allocator);
+        node.primitives = keep;
     }
 
     /// Query all primitives whose AABBs overlap with the given AABB
