@@ -1,0 +1,30 @@
+.{
+    .name = .debug_visualizer,
+    .version = "0.0.0",
+    .fingerprint = 0xbc2d6eda91775163,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .zglfw = .{
+            .url = "https://github.com/zig-gamedev/zglfw/archive/15bf6ec59a4e1399d0c753455f69b28f09e41791.tar.gz",
+            .hash = "zglfw-0.10.0-dev-zgVDNHO2IQDy_fSdwY5U4z42rHUuKgt7T9f-qmQ3FnuL",
+        },
+        .zopengl = .{
+            .url = "https://github.com/zig-gamedev/zopengl/archive/526f868b84d24dcbbf97a20fbcca17418f0708c5.tar.gz",
+            .hash = "zopengl-0.6.0-dev-5-tnz-G3CwB-4D72AAxsMmXZR_k8nwASrWcdo8CBVnoc",
+        },
+        .zalgebra = .{
+            .url = "https://github.com/kooparse/zalgebra/archive/fe19b7816f03d86d56d4fa62f943664edf5d367f.tar.gz",
+            .hash = "zalgebra-0.0.0-aaiVSrp2AQBLjd3lvhR0ILaVDHeqOpwNFCp0ZJHj0xhk",
+        },
+        // Chad library (path dependency for now, can be changed to URL later)
+        .chad = .{
+            .path = "../..",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "debug_visualizer.zig",
+        "octree_visualizer.zig",
+    },
+}
