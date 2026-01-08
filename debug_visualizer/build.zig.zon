@@ -18,7 +18,7 @@
         },
         // Chad library (path dependency for now, can be changed to URL later)
         .chad = .{
-            .path = "../..",
+            .path = "..",
         },
     },
     .paths = .{
