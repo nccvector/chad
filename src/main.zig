@@ -1,7 +1,7 @@
 const std = @import("std");
-const geometry = @import("geometry.zig");
+const geometry = @import("geometry");
 const ObjLoader = @import("objloader.zig").ObjLoader;
-const Octree = @import("octree.zig").Octree;
+const Octree = @import("octree").Octree;
 
 const Vec3 = geometry.Vec3;
 const Aabb = geometry.Aabb;

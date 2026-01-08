@@ -1,7 +1,7 @@
 const std = @import("std");
 const config = @import("config");
-const geometry = @import("geometry.zig");
-const octree_mod = @import("octree.zig");
+const geometry = @import("geometry");
+const octree_mod = @import("octree");
 
 const enable_diagnostics = config.enable_diagnostics;
 

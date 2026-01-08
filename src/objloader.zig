@@ -1,5 +1,5 @@
 const std = @import("std");
-const geometry = @import("geometry.zig");
+const geometry = @import("geometry");
 
 const Mesh = geometry.Mesh;
 const Model = geometry.Model;

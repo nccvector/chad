@@ -33,6 +33,23 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // Shared modules for benchmarks
+    const geometry_mod = b.createModule(.{
+        .root_source_file = b.path("src/geometry.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "lmao", .module = lmao.module("lmao") },
+        },
+    });
+
+    const octree_mod = b.createModule(.{
+        .root_source_file = b.path("src/acceleration/octree.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "geometry", .module = geometry_mod },
+        },
+    });
+
     const mod = b.addModule("chad", .{
         // The root source file is the "entry point" of this module. Users of
         // this module will only be able to access public declarations contained
@@ -85,6 +102,8 @@ pub fn build(b: *std.Build) void {
                 // importing modules from different packages).
                 .{ .name = "chad", .module = mod },
                 .{ .name = "lmao", .module = lmao.module("lmao") },
+                .{ .name = "geometry", .module = geometry_mod },
+                .{ .name = "octree", .module = octree_mod },
             },
         }),
     });
@@ -149,16 +168,19 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_exe_tests.step);
 
     // Geometry benchmark executable
+    const bench_geometry_mod = b.createModule(.{
+        .root_source_file = b.path("src/benchmarks/bench_geometry.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+        .imports = &.{
+            .{ .name = "lmao", .module = lmao.module("lmao") },
+            .{ .name = "geometry", .module = geometry_mod },
+        },
+    });
+
     const bench_geometry_exe = b.addExecutable(.{
         .name = "bench-geometry",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/bench_geometry.zig"),
-            .target = target,
-            .optimize = .ReleaseFast,
-            .imports = &.{
-                .{ .name = "lmao", .module = lmao.module("lmao") },
-            },
-        }),
+        .root_module = bench_geometry_mod,
     });
 
     b.installArtifact(bench_geometry_exe);
@@ -176,11 +198,13 @@ pub fn build(b: *std.Build) void {
     const enable_diagnostics = b.option(bool, "diagnostics", "Enable tree diagnostics output") orelse false;
 
     const bench_octree_mod = b.createModule(.{
-        .root_source_file = b.path("src/bench_octree.zig"),
+        .root_source_file = b.path("src/benchmarks/bench_octree.zig"),
         .target = target,
         .optimize = .ReleaseFast,
         .imports = &.{
             .{ .name = "lmao", .module = lmao.module("lmao") },
+            .{ .name = "geometry", .module = geometry_mod },
+            .{ .name = "octree", .module = octree_mod },
         },
     });
 
