@@ -196,6 +196,35 @@ pub fn main() !void {
             zgui.text("  Octree Nodes: {d}", .{node_bounds.items.len});
             zgui.separator();
             zgui.text("Camera orbiting at {d:.1} deg/s", .{rotation_speed});
+
+            if (zgui.sliderScalar("Max depth: ", u8, .{
+                .v = &(octree.config.max_depth),
+                .min = 1,
+                .max = 64,
+            })) {
+                zgui.text("REGENERATING...", .{});
+                octree.clear();
+
+                // Insert all triangles into the octree
+                prim_id = 0;
+                for (model.meshes.items) |*mesh| {
+                    var i: usize = 0;
+                    while (i < mesh.indices.len) : (i += 3) {
+                        const v0 = mesh.vertices[mesh.indices[i]];
+                        const v1 = mesh.vertices[mesh.indices[i + 1]];
+                        const v2 = mesh.vertices[mesh.indices[i + 2]];
+
+                        const tri_bounds = computeTriangleBounds(v0, v1, v2);
+                        try octree.insert(prim_id, tri_bounds);
+                        prim_id += 1;
+                    }
+                }
+                std.log.info("Inserted {d} triangles into octree", .{prim_id});
+
+                // Collect all octree node AABBs for visualization
+                node_bounds = .empty;
+                try collectOctreeNodes(&octree.root, &node_bounds, allocator);
+            }
         }
         zgui.end();
 
