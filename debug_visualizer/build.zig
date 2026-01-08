@@ -6,6 +6,9 @@ pub fn build(b: *std.Build) void {
 
     // Dependencies (without target/optimize - they handle that internally)
     const zglfw = b.dependency("zglfw", .{});
+    const zgui = b.dependency("zgui", .{
+        .backend = .glfw_opengl3,
+    });
     const zopengl = b.dependency("zopengl", .{});
     const zalgebra = b.dependency("zalgebra", .{});
     const chad = b.dependency("chad", .{
@@ -39,14 +42,16 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "debug_visualizer", .module = debug_visualizer_mod },
                 .{ .name = "geometry", .module = chad_mod },
                 .{ .name = "zglfw", .module = zglfw.module("root") },
+                .{ .name = "zgui", .module = zgui.module("root") },
                 .{ .name = "zopengl", .module = zopengl.module("root") },
                 .{ .name = "zalgebra", .module = zalgebra.module("zalgebra") },
             },
         }),
     });
 
-    // Link GLFW library
+    // Link libraries
     octree_visualizer_exe.linkLibrary(zglfw.artifact("glfw"));
+    octree_visualizer_exe.linkLibrary(zgui.artifact("imgui"));
 
     // Link OpenGL framework on macOS
     octree_visualizer_exe.linkFramework("OpenGL");

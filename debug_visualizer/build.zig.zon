@@ -8,6 +8,10 @@
             .url = "https://github.com/zig-gamedev/zglfw/archive/15bf6ec59a4e1399d0c753455f69b28f09e41791.tar.gz",
             .hash = "zglfw-0.10.0-dev-zgVDNHO2IQDy_fSdwY5U4z42rHUuKgt7T9f-qmQ3FnuL",
         },
+        .zgui = .{
+            .url = "https://github.com/zig-gamedev/zgui/archive/7d3fb3302b90bf71dbc93eb02bb208e6f37d555b.tar.gz",
+            .hash = "zgui-0.6.0-dev--L6sZBHybQAZLl719GjSlogZC3MhuGRf4wI48tjbnW3z",
+        },
         .zopengl = .{
             .url = "https://github.com/zig-gamedev/zopengl/archive/526f868b84d24dcbbf97a20fbcca17418f0708c5.tar.gz",
             .hash = "zopengl-0.6.0-dev-5-tnz-G3CwB-4D72AAxsMmXZR_k8nwASrWcdo8CBVnoc",

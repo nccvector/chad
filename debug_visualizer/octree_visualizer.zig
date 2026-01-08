@@ -1,5 +1,6 @@
 const std = @import("std");
 const zglfw = @import("zglfw");
+const zgui = @import("zgui");
 const zopengl = @import("zopengl");
 const za = @import("zalgebra");
 
@@ -51,6 +52,20 @@ pub fn main() !void {
         std.log.err("Failed to load OpenGL", .{});
         return error.OpenGLLoadFailed;
     };
+
+    // Initialize ImGui
+    zgui.init(allocator);
+    defer zgui.deinit();
+
+    // Scale UI for high DPI displays
+    const scale_factor = scale_factor: {
+        const scale = window.getContentScale();
+        break :scale_factor @max(scale[0], scale[1]);
+    };
+    zgui.getStyle().scaleAllSizes(scale_factor);
+
+    zgui.backend.init(window);
+    defer zgui.backend.deinit();
 
     // Load bunny model
     std.log.info("Loading bunny model...", .{});
@@ -129,8 +144,16 @@ pub fn main() !void {
         // Get window/framebuffer sizes
         const current_win_size = window.getSize();
         const fb_size = window.getFramebufferSize();
+        const win_width: u32 = @intCast(current_win_size[0]);
+        const win_height: u32 = @intCast(current_win_size[1]);
         const fb_width: u32 = @intCast(fb_size[0]);
         const fb_height: u32 = @intCast(fb_size[1]);
+
+        // Start ImGui frame
+        zgui.backend.newFrame(win_width, win_height);
+        const scale_x: f32 = @as(f32, @floatFromInt(fb_width)) / @as(f32, @floatFromInt(win_width));
+        const scale_y: f32 = @as(f32, @floatFromInt(fb_height)) / @as(f32, @floatFromInt(win_height));
+        zgui.io.setDisplayFramebufferScale(scale_x, scale_y);
 
         // Update camera aspect ratio and position (orbit around model)
         const current_aspect = @as(f32, @floatFromInt(current_win_size[0])) / @as(f32, @floatFromInt(current_win_size[1]));
@@ -162,6 +185,22 @@ pub fn main() !void {
                 ZaVec3.new(0.2, 0.8, 0.2), // green wireframes
             );
         }
+
+        // ImGui Hello World window
+        if (zgui.begin("Hello ImGui!", .{})) {
+            zgui.text("Welcome to the Octree Visualizer!", .{});
+            zgui.separator();
+            zgui.text("Model Info:", .{});
+            zgui.text("  Vertices: {d}", .{model.totalVertexCount()});
+            zgui.text("  Triangles: {d}", .{model.totalTriangleCount()});
+            zgui.text("  Octree Nodes: {d}", .{node_bounds.items.len});
+            zgui.separator();
+            zgui.text("Camera orbiting at {d:.1} deg/s", .{rotation_speed});
+        }
+        zgui.end();
+
+        // Render ImGui
+        zgui.backend.draw();
 
         window.swapBuffers();
     }
