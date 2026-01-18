@@ -12,6 +12,157 @@ pub const MeshId = u32;
 pub const Ray = struct {
     origin: Vec3,
     direction: Vec3,
+
+    /// Creates a ray from origin to target point
+    pub fn fromPoints(origin: Vec3, target: Vec3) Ray {
+        return .{
+            .origin = origin,
+            .direction = target.sub(origin).normalized(),
+        };
+    }
+
+    /// Returns the point along the ray at parameter t: origin + t * direction
+    pub fn at(self: Ray, t: f32) Vec3 {
+        return .{ .data = self.origin.data + @as(@Vector(3, f32), @splat(t)) * self.direction.data };
+    }
+};
+
+/// Result of a ray-triangle intersection test
+pub const RayHit = struct {
+    t: f32, // Distance along ray
+    u: f32, // Barycentric coordinate u
+    v: f32, // Barycentric coordinate v
+    // w = 1 - u - v (barycentric coordinate)
+
+    /// Returns the third barycentric coordinate w
+    pub inline fn w(self: RayHit) f32 {
+        return 1.0 - self.u - self.v;
+    }
+};
+
+/// Triangle struct for intersection tests
+pub const Triangle = struct {
+    v0: Vec3,
+    v1: Vec3,
+    v2: Vec3,
+
+    /// Creates a triangle from three vertices
+    pub fn init(v0: Vec3, v1: Vec3, v2: Vec3) Triangle {
+        return .{ .v0 = v0, .v1 = v1, .v2 = v2 };
+    }
+
+    /// Creates a triangle from a mesh at the given triangle index
+    pub fn fromMesh(mesh: *const Mesh, tri_idx: usize) Triangle {
+        const idx0 = mesh.indices[tri_idx * 3 + 0];
+        const idx1 = mesh.indices[tri_idx * 3 + 1];
+        const idx2 = mesh.indices[tri_idx * 3 + 2];
+        return .{
+            .v0 = Vec3.fromArray(&mesh.vertices[idx0]),
+            .v1 = Vec3.fromArray(&mesh.vertices[idx1]),
+            .v2 = Vec3.fromArray(&mesh.vertices[idx2]),
+        };
+    }
+
+    /// Computes the geometric normal of the triangle (non-normalized)
+    pub fn normal(self: Triangle) Vec3 {
+        const edge1 = self.v1.sub(self.v0);
+        const edge2 = self.v2.sub(self.v0);
+        return edge1.cross(edge2);
+    }
+
+    /// Computes the normalized geometric normal of the triangle
+    pub fn normalNormalized(self: Triangle) Vec3 {
+        return self.normal().normalized();
+    }
+
+    /// Computes the AABB bounding box of the triangle
+    pub fn bounds(self: Triangle) Aabb {
+        return .{
+            .bmin = self.v0.min(self.v1).min(self.v2),
+            .bmax = self.v0.max(self.v1).max(self.v2),
+        };
+    }
+
+    /// Computes the centroid of the triangle
+    pub fn centroid(self: Triangle) Vec3 {
+        const third: @Vector(3, f32) = @splat(1.0 / 3.0);
+        return .{ .data = (self.v0.data + self.v1.data + self.v2.data) * third };
+    }
+
+    /// Möller-Trumbore ray-triangle intersection algorithm.
+    /// Returns the hit information if the ray intersects the triangle, null otherwise.
+    /// The `backface_cull` parameter controls whether to reject back-facing triangles.
+    pub fn intersectRay(self: Triangle, ray: Ray, backface_cull: bool) ?RayHit {
+        const epsilon: f32 = 1e-8;
+
+        const edge1 = self.v1.sub(self.v0);
+        const edge2 = self.v2.sub(self.v0);
+
+        const h = ray.direction.cross(edge2);
+        const a = edge1.dotProduct(h);
+
+        // Check if ray is parallel to triangle
+        if (backface_cull) {
+            // Backface culling: reject if a < epsilon (back-facing or parallel)
+            if (a < epsilon) return null;
+        } else {
+            // No culling: reject only if truly parallel
+            if (@abs(a) < epsilon) return null;
+        }
+
+        const f = 1.0 / a;
+        const s = ray.origin.sub(self.v0);
+        const u = f * s.dotProduct(h);
+
+        if (u < 0.0 or u > 1.0) return null;
+
+        const q = s.cross(edge1);
+        const v = f * ray.direction.dotProduct(q);
+
+        if (v < 0.0 or u + v > 1.0) return null;
+
+        const t = f * edge2.dotProduct(q);
+
+        if (t > epsilon) {
+            return .{ .t = t, .u = u, .v = v };
+        }
+
+        return null; // Line intersection but not ray (t <= 0)
+    }
+
+    /// Ray-triangle intersection that also considers negative t values (behind ray origin).
+    /// Useful for bidirectional ray casting.
+    pub fn intersectRayBidirectional(self: Triangle, ray: Ray) ?RayHit {
+        const epsilon: f32 = 1e-8;
+
+        const edge1 = self.v1.sub(self.v0);
+        const edge2 = self.v2.sub(self.v0);
+
+        const h = ray.direction.cross(edge2);
+        const a = edge1.dotProduct(h);
+
+        if (@abs(a) < epsilon) return null;
+
+        const f = 1.0 / a;
+        const s = ray.origin.sub(self.v0);
+        const u = f * s.dotProduct(h);
+
+        if (u < 0.0 or u > 1.0) return null;
+
+        const q = s.cross(edge1);
+        const v = f * ray.direction.dotProduct(q);
+
+        if (v < 0.0 or u + v > 1.0) return null;
+
+        const t = f * edge2.dotProduct(q);
+
+        // Accept any t value (positive or negative)
+        if (@abs(t) > epsilon) {
+            return .{ .t = t, .u = u, .v = v };
+        }
+
+        return null;
+    }
 };
 
 pub const Aabb = struct {
